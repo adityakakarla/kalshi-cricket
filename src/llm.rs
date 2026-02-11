@@ -45,6 +45,11 @@ pub async fn generate_text(prompt: &str) -> Result<String> {
         .send()
         .await?;
 
+    let status = res.status();
+    if !status.is_success() {
+        return Err(anyhow::Error::msg(res.text().await?));
+    }
+
     let response = res.text().await?;
 
     Ok(response)
