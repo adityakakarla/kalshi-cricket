@@ -1,7 +1,10 @@
 mod config;
+mod kalshi;
 mod llm;
 
 use clap::{Parser, Subcommand};
+
+use crate::kalshi::get_kalshi_cricket_events;
 
 #[derive(Parser)]
 #[command(name = "fuji")]
@@ -48,6 +51,7 @@ async fn main() -> Result<(), anyhow::Error> {
         Commands::Run { prompt } => {
             let response = llm::generate_text(&prompt).await?;
             println!("Response: {:?}", response.output);
+            get_kalshi_cricket_events().await?;
         }
     }
     Ok(())
