@@ -4,8 +4,6 @@ mod llm;
 
 use clap::{Parser, Subcommand};
 
-use crate::kalshi::get_balance;
-
 #[derive(Parser)]
 #[command(name = "fuji")]
 #[command(about = "The Kalshi trading bot for cricket matches")]
@@ -49,10 +47,8 @@ async fn main() -> Result<(), anyhow::Error> {
             config::view_config()?;
         }
         Commands::Run { prompt } => {
-            let response = llm::generate_text(None, &prompt).await.unwrap();
+            let response = llm::answer_question(&prompt).await.unwrap();
             println!("Response: {:?}", response.output);
-            let kalshi_response = get_balance().await?;
-            println!("{:?}", kalshi_response);
         }
     }
     Ok(())

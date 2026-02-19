@@ -1,7 +1,8 @@
-use crate::{config, kalshi::get_balance};
+use crate::config;
+use crate::kalshi::kalshi::get_balance;
 use anyhow::Result;
 use reqwest::{
-    Client,
+    Client, Response,
     header::{HeaderMap, HeaderValue},
 };
 use serde::{Deserialize, Serialize};
@@ -48,6 +49,8 @@ pub struct CleanLLMResponse {
     pub output: String,
     pub error: Option<String>,
     pub cost: f32,
+    pub is_complete: bool,
+    pub id: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -82,6 +85,17 @@ struct LLMContent {
     text: String,
 }
 
+pub async fn answer_question(question: &str) -> Result<CleanLLMResponse> {
+    let mut response = generate_text(None, question).await?;
+
+    while !response.is_complete {
+        println!("{:?}", response);
+        response = generate_text(Some(response.id.clone()), &response.output).await?;
+    }
+
+    Ok(response)
+}
+
 pub async fn generate_text(
     previous_response_id: Option<String>,
     prompt: &str,
@@ -107,7 +121,7 @@ pub async fn generate_text(
             description: "Get the current Kalshi balance".to_string(),
             parameters: serde_json::Value::Object(serde_json::Map::new()),
         }],
-        previous_response_id: None,
+        previous_response_id: previous_response_id,
     })?;
 
     let res = client
@@ -125,17 +139,26 @@ pub async fn generate_text(
     let response = res.json::<RawLLMResponse>().await?;
 
     let output = &response.output[0];
-    let (text, error) = match output {
-        LLMOutput::FunctionCall { name } => {
-            println!("{:?}", name);
-            (String::new(), Some(String::new()))
-        }
-        LLMOutput::Message { content, .. } => (content[0].text.clone(), response.error),
-    };
     let cost = response.usage.cost_in_usd_ticks / 10_000_000_000.0;
-    Ok(CleanLLMResponse {
-        output: text,
-        error,
-        cost,
-    })
+
+    match output {
+        LLMOutput::FunctionCall { .. } => {
+            return Ok(CleanLLMResponse {
+                output: get_balance().await?,
+                error: response.error,
+                cost,
+                is_complete: false,
+                id: response.id,
+            });
+        }
+        LLMOutput::Message { content, .. } => {
+            return Ok(CleanLLMResponse {
+                output: content[0].text.clone(),
+                error: response.error,
+                cost,
+                is_complete: true,
+                id: response.id,
+            });
+        }
+    };
 }
