@@ -1,6 +1,7 @@
 use crate::kalshi::balance::get_balance;
 use crate::kalshi::markets::get_t20_markets;
 use crate::kalshi::orders::get_open_orders;
+use crate::kalshi::positions::get_positions;
 use crate::{config, kalshi::balance::get_portfolio_value};
 use anyhow::Result;
 use reqwest::{
@@ -159,7 +160,14 @@ pub async fn generate_text(
                 description: "Get the current Kalshi orders."
                     .to_string(),
                 parameters: serde_json::Value::Object(serde_json::Map::new()),
-            }
+            },
+            LLMTool {
+                tool_type: "function".to_string(),
+                name: "getPositions".to_string(),
+                description: "Get the current Kalshi positions."
+                    .to_string(),
+                parameters: serde_json::Value::Object(serde_json::Map::new()),
+            },
         ],
         previous_response_id: previous_response_id,
     })?;
@@ -213,6 +221,15 @@ pub async fn generate_text(
             "getOrders" => {
                 return Ok(IntermediateLLMResponse {
                     output: get_open_orders().await?,
+                    error: response.error,
+                    cost,
+                    is_complete: false,
+                    id: response.id,
+                });
+            }
+            "getPositions" => {
+                return Ok(IntermediateLLMResponse {
+                    output: get_positions().await?,
                     error: response.error,
                     cost,
                     is_complete: false,
