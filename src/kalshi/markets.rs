@@ -5,11 +5,16 @@ use crate::kalshi::kalshi::make_request;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Markets {
-    markets: Vec<Market>,
+    markets: Vec<IndividualMarket>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Market {
+    market: IndividualMarket,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct IndividualMarket {
     ticker: String,
     event_ticker: String,
     title: String,
@@ -36,4 +41,10 @@ async fn get_markets_by_series_ticker(series_ticker: &str) -> Result<String> {
 
 pub async fn get_t20_markets() -> Result<String> {
     get_markets_by_series_ticker("KXT20MATCH").await
+}
+
+pub async fn get_market_basics_by_ticker(ticker: &str) -> Result<String> {
+    let request = make_request("GET", &format!("/markets/{}", ticker)).await?;
+    let response = request.json::<Market>().await?;
+    Ok(format!("{:?}", response))
 }
