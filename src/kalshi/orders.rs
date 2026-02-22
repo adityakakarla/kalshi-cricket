@@ -1,5 +1,5 @@
 use crate::kalshi::{
-    kalshi::make_authenticated_request, markets::get_market_information_by_ticker,
+    kalshi::make_authenticated_get_request, markets::get_market_information_by_ticker,
 };
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -27,7 +27,7 @@ struct Order {
 }
 
 async fn get_open_orders() -> Result<Orders> {
-    let response = make_authenticated_request("GET", "/portfolio/orders").await?;
+    let response = make_authenticated_get_request("/portfolio/orders").await?;
     let json = response.json::<Orders>().await?;
     Ok(json)
 }

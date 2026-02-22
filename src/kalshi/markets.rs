@@ -1,7 +1,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::kalshi::kalshi::make_request;
+use crate::kalshi::kalshi::make_get_request;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Markets {
@@ -30,10 +30,10 @@ struct IndividualMarket {
 }
 
 async fn get_markets_by_series_ticker(series_ticker: &str) -> Result<Markets> {
-    let request = make_request(
-        "GET",
-        &format!("/markets?series_ticker={}&status=open", series_ticker),
-    )
+    let request = make_get_request(&format!(
+        "/markets?series_ticker={}&status=open",
+        series_ticker
+    ))
     .await?;
     let response = request.json::<Markets>().await?;
     Ok(response)
@@ -47,7 +47,7 @@ pub async fn get_t20_market_details() -> Result<String> {
 }
 
 pub async fn get_market_information_by_ticker(ticker: &str) -> Result<Market> {
-    let request = make_request("GET", &format!("/markets/{}", ticker)).await?;
+    let request = make_get_request(&format!("/markets/{}", ticker)).await?;
     let response = request.json::<Market>().await?;
     Ok(response)
 }

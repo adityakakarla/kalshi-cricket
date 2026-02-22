@@ -1,4 +1,4 @@
-use crate::kalshi::kalshi::make_authenticated_request;
+use crate::kalshi::kalshi::make_authenticated_get_request;
 use anyhow::Result;
 use serde::Deserialize;
 
@@ -9,7 +9,7 @@ struct BalanceOutput {
 }
 
 async fn get_raw_balance() -> Result<BalanceOutput> {
-    let response = make_authenticated_request("GET", "/portfolio/balance").await?;
+    let response = make_authenticated_get_request("/portfolio/balance").await?;
     let json = response.json::<BalanceOutput>().await?;
     Ok(json)
 }

@@ -95,13 +95,13 @@ struct LLMContent {
     text: String,
 }
 
-pub async fn answer_question(question: &str) -> Result<CleanLLMResponse> {
-    let mut response = generate_text(None, question).await?;
+pub async fn query_agent(question: &str) -> Result<CleanLLMResponse> {
+    let mut response = query_llm(None, question).await?;
     let mut total_cost = response.cost;
     let mut total_iterations = 0;
 
     while !response.is_complete && total_iterations < 10 {
-        response = generate_text(Some(response.id.clone()), &response.output).await?;
+        response = query_llm(Some(response.id.clone()), &response.output).await?;
         total_cost += response.cost;
         total_iterations += 1;
     }
@@ -113,7 +113,7 @@ pub async fn answer_question(question: &str) -> Result<CleanLLMResponse> {
     })
 }
 
-pub async fn generate_text(
+pub async fn query_llm(
     previous_response_id: Option<String>,
     prompt: &str,
 ) -> Result<IntermediateLLMResponse> {

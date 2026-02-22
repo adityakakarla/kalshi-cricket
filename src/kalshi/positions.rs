@@ -1,5 +1,5 @@
 use crate::kalshi::{
-    kalshi::make_authenticated_request, markets::get_market_information_by_ticker,
+    kalshi::make_authenticated_get_request, markets::get_market_information_by_ticker,
 };
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -20,7 +20,7 @@ struct MarketPosition {
 }
 
 async fn get_positions() -> Result<Positions> {
-    let response = make_authenticated_request("GET", "/portfolio/positions").await?;
+    let response = make_authenticated_get_request("/portfolio/positions").await?;
     let json = response.json::<Positions>().await?;
     Ok(json)
 }

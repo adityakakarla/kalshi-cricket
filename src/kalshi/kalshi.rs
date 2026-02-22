@@ -15,20 +15,15 @@ use sha2::Sha256;
 use crate::config::{get_kalshi_api_key, get_kalshi_key_id};
 use chrono::Utc;
 
-pub async fn make_request(method: &str, path: &str) -> Result<Response> {
-    let res = match method {
-        "GET" => {
-            let client = reqwest::Client::new();
-            client
-                .get(format!(
-                    "https://api.elections.kalshi.com/trade-api/v2{}",
-                    path
-                ))
-                .send()
-                .await?
-        }
-        _ => return Err(anyhow::Error::msg("Unsupported method")),
-    };
+pub async fn make_get_request(path: &str) -> Result<Response> {
+    let client = reqwest::Client::new();
+    let res = client
+        .get(format!(
+            "https://api.elections.kalshi.com/trade-api/v2{}",
+            path
+        ))
+        .send()
+        .await?;
 
     if let Err(err) = res.error_for_status_ref() {
         return Err(err.into());
@@ -37,14 +32,14 @@ pub async fn make_request(method: &str, path: &str) -> Result<Response> {
     Ok(res)
 }
 
-pub async fn make_authenticated_request(method: &str, path: &str) -> Result<Response> {
+pub async fn make_authenticated_get_request(path: &str) -> Result<Response> {
     let kalshi_key_id = get_kalshi_key_id()?;
     let kalshi_private_key = get_kalshi_api_key()?;
     let current_timestamp = Utc::now().timestamp_millis();
     let signature = sign_authenticated_request(
         &kalshi_private_key,
         &current_timestamp.to_string(),
-        method,
+        "GET",
         path,
     )?;
 
@@ -59,20 +54,15 @@ pub async fn make_authenticated_request(method: &str, path: &str) -> Result<Resp
         HeaderValue::from_str(&current_timestamp.to_string())?,
     );
 
-    let res = match method {
-        "GET" => {
-            let client = reqwest::Client::new();
-            client
-                .get(format!(
-                    "https://api.elections.kalshi.com/trade-api/v2{}",
-                    path
-                ))
-                .headers(headers)
-                .send()
-                .await?
-        }
-        _ => return Err(anyhow::Error::msg("Unsupported method")),
-    };
+    let client = reqwest::Client::new();
+    let res = client
+        .get(format!(
+            "https://api.elections.kalshi.com/trade-api/v2{}",
+            path
+        ))
+        .headers(headers)
+        .send()
+        .await?;
 
     if let Err(err) = res.error_for_status_ref() {
         return Err(err.into());
