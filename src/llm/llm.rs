@@ -118,7 +118,7 @@ pub async fn query_agent(question: &str) -> Result<CleanLLMResponse> {
 
 pub async fn query_llm_without_tools(
     previous_response_id: Option<String>,
-    prompt: &str,
+    prompt: String,
 ) -> Result<CleanLLMResponse> {
     let api_key = config::get_grok_api_key()?;
     let client = Client::new();
@@ -133,7 +133,7 @@ pub async fn query_llm_without_tools(
         model: GROK_MODEL.to_string(),
         input: vec![LLMMessage {
             role: "user".to_string(),
-            content: prompt.to_string(),
+            content: prompt,
         }],
         tools: None,
         previous_response_id,

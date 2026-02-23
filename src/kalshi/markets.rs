@@ -14,19 +14,19 @@ pub struct Market {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct IndividualMarket {
-    ticker: String,
-    event_ticker: String,
-    title: String,
-    subtitle: String,
-    yes_sub_title: String,
-    no_sub_title: String,
-    status: String,
-    yes_bid_dollars: String,
-    yes_ask_dollars: String,
-    no_bid_dollars: String,
-    no_ask_dollars: String,
-    volume: u64,
+pub struct IndividualMarket {
+    pub ticker: String,
+    pub event_ticker: String,
+    pub title: String,
+    pub subtitle: String,
+    pub yes_sub_title: String,
+    pub no_sub_title: String,
+    pub status: String,
+    pub yes_bid_dollars: String,
+    pub yes_ask_dollars: String,
+    pub no_bid_dollars: String,
+    pub no_ask_dollars: String,
+    pub volume: u64,
 }
 
 async fn get_markets_by_series_ticker(series_ticker: &str) -> Result<Markets> {
@@ -50,4 +50,14 @@ pub async fn get_market_information_by_ticker(ticker: &str) -> Result<Market> {
     let request = make_get_request(&format!("/markets/{}", ticker)).await?;
     let response = request.json::<Market>().await?;
     Ok(response)
+}
+
+pub fn get_market_details_without_price(market: &IndividualMarket) -> Result<String> {
+    Ok(format!(
+        "Title: {}
+        Subtitle: {}
+        Yes Subtitle: {}
+        No Subtitle: {}",
+        market.title, market.subtitle, market.yes_sub_title, market.no_sub_title
+    ))
 }
