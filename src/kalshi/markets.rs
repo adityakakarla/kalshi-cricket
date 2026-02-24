@@ -29,14 +29,21 @@ pub struct IndividualMarket {
     pub volume: u64,
 }
 
-async fn get_markets_by_series_ticker(series_ticker: &str) -> Result<Markets> {
+async fn get_markets_by_series_ticker(series_ticker: &str) -> Result<Vec<IndividualMarket>> {
     let request = make_get_request(&format!(
         "/markets?series_ticker={}&status=open",
         series_ticker
     ))
     .await?;
     let response = request.json::<Markets>().await?;
-    Ok(response)
+    let mut result = Vec::new();
+
+    for market in response.markets {
+        if market.volume > 1000 {
+            result.push(market)
+        }
+    }
+    Ok(result)
 }
 
 pub async fn get_t20_market_details() -> Result<String> {

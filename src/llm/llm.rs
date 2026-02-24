@@ -227,7 +227,12 @@ pub async fn query_llm(
             LLMTool {
                 tool_type: "function".to_string(),
                 name: "priceMarketsFromTickers".to_string(),
-                description: "Get LLM-generated fair price estimates for a list of Kalshi market tickers. Returns a yes bid price (as a decimal probability) for each ticker.".to_string(),
+                description: "Get LLM-generated fair price estimates for a list of
+            Kalshi market tickers. Returns a yes bid price (as a decimal probability)
+            for each ticker. Note to keep in mind in case you are using this information
+            for future reasoning: some markets are very small (ex: random games by very
+            non-cricket playing countries. note that the prices for these provided from
+            the api may not actually match the real prices to purchase a bet)".to_string(),
                 parameters: serde_json::json!({
                     "type": "object",
                     "properties": {
