@@ -124,7 +124,7 @@ pub async fn query_agent(question: &str) -> Result<CleanLLMResponse> {
 pub async fn query_llm_with_built_in_tools(
     previous_response_id: Option<String>,
     prompt: String,
-) -> Result<CleanLLMResponse> {
+) -> Result<IntermediateLLMResponse> {
     let api_key = config::get_grok_api_key()?;
     let client = Client::new();
 
@@ -147,33 +147,60 @@ pub async fn query_llm_with_built_in_tools(
         previous_response_id,
     })?;
 
-    let response = client
+    let res = client
         .post(GROK_URL)
         .headers(header_map)
         .body(body)
         .send()
         .await?;
 
-    let response = response.json::<RawLLMResponse>().await?;
+    let status = res.status();
+    if !status.is_success() {
+        return Err(anyhow::Error::msg(res.text().await?));
+    }
 
-    let output = &response.output[0];
+    let response = res.json::<RawLLMResponse>().await?;
     let cost = response.usage.cost_in_usd_ticks / 10_000_000_000.0;
 
-    let text = match output {
-        LLMOutput::Message { content, .. } => content[0].text.clone(),
-        LLMOutput::FunctionCall { name, .. } => {
-            return Err(anyhow::anyhow!(
-                "Unexpected function call '{}' in agent without tools",
-                name
-            ));
+    let output = &response.output[0];
+
+    match output {
+        LLMOutput::FunctionCall { name, .. } => match name.as_str() {
+            "web_search_call" => {
+                return Ok(IntermediateLLMResponse {
+                    output: format!("web search completed"),
+                    error: response.error,
+                    cost,
+                    is_complete: false,
+                    id: response.id,
+                });
+            }
+            "x_search_call" => {
+                return Ok(IntermediateLLMResponse {
+                    output: format!("x search completed"),
+                    error: response.error,
+                    cost,
+                    is_complete: false,
+                    id: response.id,
+                });
+            }
+            _ => {
+                return Err(anyhow::Error::msg(format!(
+                    "Unknown function call: {}",
+                    name
+                )));
+            }
+        },
+        LLMOutput::Message { content, .. } => {
+            return Ok(IntermediateLLMResponse {
+                output: content[0].text.clone(),
+                error: response.error,
+                cost,
+                is_complete: true,
+                id: response.id,
+            });
         }
     };
-
-    Ok(CleanLLMResponse {
-        output: text,
-        error: response.error,
-        cost,
-    })
 }
 
 pub async fn query_llm_with_kalshi_tools(
