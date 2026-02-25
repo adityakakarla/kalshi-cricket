@@ -12,7 +12,8 @@ use reqwest::{
 };
 use serde::{Deserialize, Serialize};
 
-const GROK_MODEL: &str = "grok-4-1-fast-non-reasoning";
+const KALSHI_GROK_MODEL: &str = "grok-4-1-fast-non-reasoning";
+const PRICING_GROK_MODEL: &str = "grok-4-1-fast-reasoning";
 const GROK_URL: &str = "https://api.x.ai/v1/responses";
 
 #[derive(Debug, Serialize)]
@@ -24,12 +25,15 @@ struct LLMInput {
 }
 
 #[derive(Debug, Serialize)]
-struct LLMTool {
-    #[serde(rename = "type")]
-    tool_type: String,
-    name: String,
-    description: String,
-    parameters: serde_json::Value,
+#[serde(tag = "type", rename_all = "snake_case")]
+enum LLMTool {
+    WebSearch,
+    XSearch,
+    Function {
+        name: String,
+        description: String,
+        parameters: serde_json::Value,
+    },
 }
 
 #[derive(Debug, Serialize)]
@@ -100,12 +104,12 @@ struct LLMContent {
 }
 
 pub async fn query_agent(question: &str) -> Result<CleanLLMResponse> {
-    let mut response = query_llm(None, question).await?;
+    let mut response = query_llm_with_kalshi_tools(None, question).await?;
     let mut total_cost = response.cost;
     let mut total_iterations = 0;
 
     while !response.is_complete && total_iterations < 10 {
-        response = query_llm(Some(response.id.clone()), &response.output).await?;
+        response = query_llm_with_kalshi_tools(Some(response.id.clone()), &response.output).await?;
         total_cost += response.cost;
         total_iterations += 1;
     }
@@ -117,7 +121,7 @@ pub async fn query_agent(question: &str) -> Result<CleanLLMResponse> {
     })
 }
 
-pub async fn query_llm_without_tools(
+pub async fn query_llm_with_built_in_tools(
     previous_response_id: Option<String>,
     prompt: String,
 ) -> Result<CleanLLMResponse> {
@@ -131,12 +135,15 @@ pub async fn query_llm_without_tools(
     header_map.insert("Authorization", authorization);
 
     let body = serde_json::to_string(&LLMInput {
-        model: GROK_MODEL.to_string(),
+        model: PRICING_GROK_MODEL.to_string(),
         input: vec![LLMMessage {
             role: "user".to_string(),
-            content: prompt,
+            content: format!(
+                "User prompt: {}. Please be concise and do not take too long.",
+                prompt
+            ),
         }],
-        tools: None,
+        tools: Some(vec![LLMTool::WebSearch, LLMTool::XSearch]),
         previous_response_id,
     })?;
 
@@ -169,7 +176,7 @@ pub async fn query_llm_without_tools(
     })
 }
 
-pub async fn query_llm(
+pub async fn query_llm_with_kalshi_tools(
     previous_response_id: Option<String>,
     prompt: &str,
 ) -> Result<IntermediateLLMResponse> {
@@ -183,56 +190,45 @@ pub async fn query_llm(
     header_map.insert("Authorization", authorization);
 
     let body = serde_json::to_string(&LLMInput {
-        model: GROK_MODEL.to_string(),
+        model: KALSHI_GROK_MODEL.to_string(),
         input: vec![LLMMessage {
             role: "user".to_string(),
             content: prompt.to_string(),
         }],
         tools: Some(vec![
-            LLMTool {
-                tool_type: "function".to_string(),
+            LLMTool::Function {
                 name: "getBalance".to_string(),
                 description: "Get the current Kalshi cash balance in cents (ex: 100 = $1.00). This is different from portfolio value."
                     .to_string(),
                 parameters: serde_json::Value::Object(serde_json::Map::new()),
             },
-            LLMTool {
-                tool_type: "function".to_string(),
+            LLMTool::Function {
                 name: "getPortfolioValue".to_string(),
                 description: "Get the current Kalshi portfolio value in cents (ex: 100 = $1.00). This is different from balance."
                     .to_string(),
                 parameters: serde_json::Value::Object(serde_json::Map::new()),
             },
-            LLMTool {
-                tool_type: "function".to_string(),
+            LLMTool::Function {
                 name: "getT20Markets".to_string(),
                 description: "Get the current Kalshi T20 markets."
                     .to_string(),
                 parameters: serde_json::Value::Object(serde_json::Map::new()),
             },
-            LLMTool {
-                tool_type: "function".to_string(),
+            LLMTool::Function {
                 name: "getOrders".to_string(),
                 description: "Get the current Kalshi orders."
                     .to_string(),
                 parameters: serde_json::Value::Object(serde_json::Map::new()),
             },
-            LLMTool {
-                tool_type: "function".to_string(),
+            LLMTool::Function {
                 name: "getPositions".to_string(),
                 description: "Get the current Kalshi positions."
                     .to_string(),
                 parameters: serde_json::Value::Object(serde_json::Map::new()),
             },
-            LLMTool {
-                tool_type: "function".to_string(),
+            LLMTool::Function {
                 name: "priceMarketsFromTickers".to_string(),
-                description: "Get LLM-generated fair price estimates for a list of
-            Kalshi market tickers. Returns a yes bid price (as a decimal probability)
-            for each ticker. Note to keep in mind in case you are using this information
-            for future reasoning: some markets are very small (ex: random games by very
-            non-cricket playing countries. note that the prices for these provided from
-            the api may not actually match the real prices to purchase a bet)".to_string(),
+                description: "Get LLM-generated fair price estimates for a list of Kalshi market tickers. Returns a yes bid price (as a decimal probability) for each ticker. Note t".to_string(),
                 parameters: serde_json::json!({
                     "type": "object",
                     "properties": {
@@ -247,8 +243,7 @@ pub async fn query_llm(
                     "required": ["tickers"]
                 }),
             },
-            LLMTool {
-                tool_type: "function".to_string(),
+            LLMTool::Function {
                 name: "createOrder".to_string(),
                 description: "Place an order on Kalshi. Use yes_price for buying/selling Yes contracts, or no_price for buying/selling No contracts. Prices are in cents (1-99). Only provide the price field relevant to your side.".to_string(),
                 parameters: serde_json::json!({
@@ -311,111 +306,117 @@ pub async fn query_llm(
     let cost = response.usage.cost_in_usd_ticks / 10_000_000_000.0;
 
     match output {
-        LLMOutput::FunctionCall { name, arguments } => match name.as_str() {
-            "getBalance" => {
-                return Ok(IntermediateLLMResponse {
-                    output: get_balance().await?,
-                    error: response.error,
-                    cost,
-                    is_complete: false,
-                    id: response.id,
-                });
-            }
-            "getPortfolioValue" => {
-                return Ok(IntermediateLLMResponse {
-                    output: get_portfolio_value().await?,
-                    error: response.error,
-                    cost,
-                    is_complete: false,
-                    id: response.id,
-                });
-            }
-            "getT20Markets" => {
-                return Ok(IntermediateLLMResponse {
-                    output: get_t20_market_details().await?,
-                    error: response.error,
-                    cost,
-                    is_complete: false,
-                    id: response.id,
-                });
-            }
-            "getOrders" => {
-                return Ok(IntermediateLLMResponse {
-                    output: get_open_order_details().await?,
-                    error: response.error,
-                    cost,
-                    is_complete: false,
-                    id: response.id,
-                });
-            }
-            "getPositions" => {
-                return Ok(IntermediateLLMResponse {
-                    output: get_positions_details().await?,
-                    error: response.error,
-                    cost,
-                    is_complete: false,
-                    id: response.id,
-                });
-            }
-            "priceMarketsFromTickers" => {
-                let args_str = arguments.as_deref().unwrap_or("{}");
-                let args: serde_json::Value = serde_json::from_str(args_str)
-                    .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+        LLMOutput::FunctionCall { name, arguments } => {
+            println!("{}", name);
+            match name.as_str() {
+                "getBalance" => {
+                    return Ok(IntermediateLLMResponse {
+                        output: get_balance().await?,
+                        error: response.error,
+                        cost,
+                        is_complete: false,
+                        id: response.id,
+                    });
+                }
+                "getPortfolioValue" => {
+                    return Ok(IntermediateLLMResponse {
+                        output: get_portfolio_value().await?,
+                        error: response.error,
+                        cost,
+                        is_complete: false,
+                        id: response.id,
+                    });
+                }
+                "getT20Markets" => {
+                    return Ok(IntermediateLLMResponse {
+                        output: get_t20_market_details().await?,
+                        error: response.error,
+                        cost,
+                        is_complete: false,
+                        id: response.id,
+                    });
+                }
+                "getOrders" => {
+                    return Ok(IntermediateLLMResponse {
+                        output: get_open_order_details().await?,
+                        error: response.error,
+                        cost,
+                        is_complete: false,
+                        id: response.id,
+                    });
+                }
+                "getPositions" => {
+                    return Ok(IntermediateLLMResponse {
+                        output: get_positions_details().await?,
+                        error: response.error,
+                        cost,
+                        is_complete: false,
+                        id: response.id,
+                    });
+                }
+                "priceMarketsFromTickers" => {
+                    let args_str = arguments.as_deref().unwrap_or("{}");
+                    let args: serde_json::Value = serde_json::from_str(args_str)
+                        .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
 
-                let tickers: Vec<String> = args["tickers"]
-                    .as_array()
-                    .ok_or_else(|| {
-                        anyhow::anyhow!("priceMarketsFromTickers: missing required field 'tickers'")
-                    })?
-                    .iter()
-                    .filter_map(|v| v.as_str().map(String::from))
-                    .collect();
+                    let tickers: Vec<String> = args["tickers"]
+                        .as_array()
+                        .ok_or_else(|| {
+                            anyhow::anyhow!(
+                                "priceMarketsFromTickers: missing required field 'tickers'"
+                            )
+                        })?
+                        .iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect();
 
-                return Ok(IntermediateLLMResponse {
-                    output: price_markets_from_tickers(tickers).await?,
-                    error: response.error,
-                    cost,
-                    is_complete: false,
-                    id: response.id,
-                });
-            }
-            "createOrder" => {
-                let args_str = arguments.as_deref().unwrap_or("{}");
-                let args: serde_json::Value = serde_json::from_str(args_str)
-                    .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+                    return Ok(IntermediateLLMResponse {
+                        output: price_markets_from_tickers(tickers).await?,
+                        error: response.error,
+                        cost,
+                        is_complete: false,
+                        id: response.id,
+                    });
+                }
+                "createOrder" => {
+                    let args_str = arguments.as_deref().unwrap_or("{}");
+                    let args: serde_json::Value = serde_json::from_str(args_str)
+                        .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
 
-                let ticker = args["ticker"].as_str().ok_or_else(|| {
-                    anyhow::anyhow!("createOrder: missing required field 'ticker'")
-                })?;
-                let side = args["side"]
-                    .as_str()
-                    .ok_or_else(|| anyhow::anyhow!("createOrder: missing required field 'side'"))?;
-                let action = args["action"].as_str().ok_or_else(|| {
-                    anyhow::anyhow!("createOrder: missing required field 'action'")
-                })?;
-                let count = args["count"]
-                    .as_i64()
-                    .ok_or_else(|| anyhow::anyhow!("createOrder: missing required field 'count'"))?
-                    as i32;
-                let yes_price = args["yes_price"].as_i64().map(|p| p as i32);
-                let no_price = args["no_price"].as_i64().map(|p| p as i32);
+                    let ticker = args["ticker"].as_str().ok_or_else(|| {
+                        anyhow::anyhow!("createOrder: missing required field 'ticker'")
+                    })?;
+                    let side = args["side"].as_str().ok_or_else(|| {
+                        anyhow::anyhow!("createOrder: missing required field 'side'")
+                    })?;
+                    let action = args["action"].as_str().ok_or_else(|| {
+                        anyhow::anyhow!("createOrder: missing required field 'action'")
+                    })?;
+                    let count = args["count"].as_i64().ok_or_else(|| {
+                        anyhow::anyhow!("createOrder: missing required field 'count'")
+                    })? as i32;
+                    let yes_price = args["yes_price"].as_i64().map(|p| p as i32);
+                    let no_price = args["no_price"].as_i64().map(|p| p as i32);
 
-                return Ok(IntermediateLLMResponse {
-                    output: place_order(ticker, side, action, count, yes_price, no_price).await?,
-                    error: response.error,
-                    cost,
-                    is_complete: false,
-                    id: response.id,
-                });
+                    return Ok(IntermediateLLMResponse {
+                        output: place_order(ticker, side, action, count, yes_price, no_price)
+                            .await?,
+                        error: response.error,
+                        cost,
+                        is_complete: false,
+                        id: response.id,
+                    });
+                }
+                _ => {
+                    return Err(anyhow::Error::msg(format!(
+                        "Unknown function call: {}",
+                        name
+                    )));
+                }
             }
-            _ => {
-                return Err(anyhow::Error::msg(format!(
-                    "Unknown function call: {}",
-                    name
-                )));
-            }
-        },
+        }
         LLMOutput::Message { content, .. } => {
+            println!("{}", content[0].text);
             return Ok(IntermediateLLMResponse {
                 output: content[0].text.clone(),
                 error: response.error,

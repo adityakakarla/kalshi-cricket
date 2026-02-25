@@ -2,7 +2,7 @@ use crate::{
     kalshi::markets::{
         IndividualMarket, get_market_details_without_price, get_market_information_by_ticker,
     },
-    llm::llm::query_llm_without_tools,
+    llm::llm::query_llm_with_built_in_tools,
 };
 use anyhow::Result;
 
@@ -19,7 +19,7 @@ pub async fn price_markets_from_tickers(tickers: Vec<String>) -> Result<String> 
 
 async fn price_market(market: IndividualMarket) -> Result<String> {
     let details = get_market_details_without_price(&market);
-    let response = query_llm_without_tools(
+    let response = query_llm_with_built_in_tools(
         None,
         format!(
             "
