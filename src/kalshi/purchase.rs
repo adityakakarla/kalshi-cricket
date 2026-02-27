@@ -66,6 +66,21 @@ pub async fn place_order(
         reduce_only: None,
         cancel_order_on_pause: Some(true),
     };
+
+    println!(
+        "Reply with yes to approve the following order:
+        {:?}",
+        request
+    );
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+    let input = input.trim();
+
+    if input != "yes" {
+        return Ok(String::from("Order was denied by the user"));
+    }
+
     let response = create_order(request).await?;
     Ok(format!(
         "Order placed successfully: order_id={}, ticker={}, side={}, action={}, status={}, yes_price_dollars={}, no_price_dollars={}, fill_count={}",
