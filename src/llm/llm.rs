@@ -1,4 +1,5 @@
 use crate::f1::race_control::{RaceControlParams, get_race_control_details};
+use crate::f1::sessions::{SessionParams, get_session_details};
 use crate::kalshi::balance::get_balance;
 use crate::kalshi::markets::get_f1_market_details;
 use crate::kalshi::orders::get_open_order_details;
@@ -314,6 +315,68 @@ pub async fn query_llm_with_kalshi_tools(
                 }),
             },
             LLMTool::Function {
+                name: "getSessions".to_string(),
+                description: "Fetch F1 sessions from the OpenF1 API (Practice, Qualifying, Race, etc.). All parameters are optional filters. Use 'latest' for session_key or meeting_key to get the current session/meeting.".to_string(),
+                parameters: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "session_key": {
+                            "type": "string",
+                            "description": "Unique session identifier, or 'latest' for the current session"
+                        },
+                        "meeting_key": {
+                            "type": "string",
+                            "description": "Unique meeting identifier, or 'latest' for the current meeting"
+                        },
+                        "circuit_key": {
+                            "type": "integer",
+                            "description": "Unique identifier for the circuit"
+                        },
+                        "circuit_short_name": {
+                            "type": "string",
+                            "description": "Short name of the circuit (e.g. 'Spa-Francorchamps')"
+                        },
+                        "country_code": {
+                            "type": "string",
+                            "description": "Three-letter country code (e.g. 'BEL')"
+                        },
+                        "country_key": {
+                            "type": "integer",
+                            "description": "Unique identifier for the country"
+                        },
+                        "country_name": {
+                            "type": "string",
+                            "description": "Full name of the country (e.g. 'Belgium')"
+                        },
+                        "location": {
+                            "type": "string",
+                            "description": "City or location of the event (e.g. 'Spa-Francorchamps')"
+                        },
+                        "session_name": {
+                            "type": "string",
+                            "description": "Name of the session (Practice 1, Qualifying, Race, Sprint Qualifying, ...)"
+                        },
+                        "session_type": {
+                            "type": "string",
+                            "description": "Type of the session (Practice, Qualifying, Race, Sprint Qualifying, ...)"
+                        },
+                        "year": {
+                            "type": "integer",
+                            "description": "Year of the event"
+                        },
+                        "date_start_from": {
+                            "type": "string",
+                            "description": "Start of date range for session start, inclusive (ISO 8601)"
+                        },
+                        "date_start_to": {
+                            "type": "string",
+                            "description": "End of date range for session start, exclusive (ISO 8601)"
+                        }
+                    },
+                    "required": []
+                }),
+            },
+            LLMTool::Function {
                 name: "createOrder".to_string(),
                 description: "Place an order on Kalshi. Use yes_price for buying/selling Yes contracts, or no_price for buying/selling No contracts. Prices are in cents (1-99). Only provide the price field relevant to your side.".to_string(),
                 parameters: serde_json::json!({
@@ -446,6 +509,35 @@ pub async fn query_llm_with_kalshi_tools(
 
                     return Ok(IntermediateLLMResponse {
                         output: get_race_control_details(params).await?,
+                        error: response.error,
+                        cost,
+                        is_complete: false,
+                        id: response.id,
+                    });
+                }
+                "getSessions" => {
+                    let args_str = arguments.as_deref().unwrap_or("{}");
+                    let args: serde_json::Value = serde_json::from_str(args_str)
+                        .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+
+                    let params = SessionParams {
+                        session_key: args["session_key"].as_str().map(String::from),
+                        meeting_key: args["meeting_key"].as_str().map(String::from),
+                        circuit_key: args["circuit_key"].as_i64().map(|v| v as i32),
+                        circuit_short_name: args["circuit_short_name"].as_str().map(String::from),
+                        country_code: args["country_code"].as_str().map(String::from),
+                        country_key: args["country_key"].as_i64().map(|v| v as i32),
+                        country_name: args["country_name"].as_str().map(String::from),
+                        location: args["location"].as_str().map(String::from),
+                        session_name: args["session_name"].as_str().map(String::from),
+                        session_type: args["session_type"].as_str().map(String::from),
+                        year: args["year"].as_i64().map(|v| v as i32),
+                        date_start_from: args["date_start_from"].as_str().map(String::from),
+                        date_start_to: args["date_start_to"].as_str().map(String::from),
+                    };
+
+                    return Ok(IntermediateLLMResponse {
+                        output: get_session_details(params).await?,
                         error: response.error,
                         cost,
                         is_complete: false,
