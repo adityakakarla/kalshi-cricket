@@ -21,13 +21,17 @@ pub struct RaceControlEvent {
 #[derive(Debug, Default)]
 pub struct RaceControlParams {
     pub session_key: Option<String>,
-    pub meeting_key: Option<i32>,
+    pub meeting_key: Option<String>,
     pub driver_number: Option<i32>,
     pub flag: Option<String>,
     pub category: Option<String>,
     pub lap_number: Option<i32>,
     pub date_from: Option<String>,
     pub date_to: Option<String>,
+    pub message: Option<String>,
+    pub qualifying_phase: Option<String>,
+    pub scope: Option<String>,
+    pub sector: Option<i32>,
 }
 
 pub async fn get_race_control(params: RaceControlParams) -> Result<Vec<RaceControlEvent>> {
@@ -38,6 +42,24 @@ pub async fn get_race_control(params: RaceControlParams) -> Result<Vec<RaceContr
     }
     if let Some(v) = params.meeting_key {
         query_parts.push(format!("meeting_key={}", v));
+    }
+    if let Some(v) = params.date_from {
+        query_parts.push(format!("date>={}", v));
+    }
+    if let Some(v) = params.date_to {
+        query_parts.push(format!("date<{}", v));
+    }
+    if let Some(v) = params.message {
+        query_parts.push(format!("message={}", v));
+    }
+    if let Some(v) = params.qualifying_phase {
+        query_parts.push(format!("qualifying_phase={}", v));
+    }
+    if let Some(v) = params.scope {
+        query_parts.push(format!("scope={}", v));
+    }
+    if let Some(v) = params.sector {
+        query_parts.push(format!("sector={}", v));
     }
     if let Some(v) = params.driver_number {
         query_parts.push(format!("driver_number={}", v));
@@ -50,12 +72,6 @@ pub async fn get_race_control(params: RaceControlParams) -> Result<Vec<RaceContr
     }
     if let Some(v) = params.lap_number {
         query_parts.push(format!("lap_number={}", v));
-    }
-    if let Some(v) = params.date_from {
-        query_parts.push(format!("date>={}", v));
-    }
-    if let Some(v) = params.date_to {
-        query_parts.push(format!("date<{}", v));
     }
 
     let url = if query_parts.is_empty() {

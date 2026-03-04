@@ -256,41 +256,58 @@ pub async fn query_llm_with_kalshi_tools(
             },
             LLMTool::Function {
                 name: "getRaceControl".to_string(),
-                description: "Fetch race control events from the OpenF1 API (flags, safety cars, messages, etc.). All parameters are optional filters. Setting session key equal to the string 'latest' will get you the current/latest session".to_string(),
+                description: "Fetch race control events from the OpenF1 API (flags, safety cars, messages, etc.). All parameters are optional filters. Use 'latest' for session_key or meeting_key to get the current session/meeting.".to_string(),
                 parameters: serde_json::json!({
                     "type": "object",
                     "properties": {
                         "session_key": {
                             "type": "string",
-                            "description": "Filter by OpenF1 session key, or 'latest' for the current session"
+                            "description": "Unique session identifier, or 'latest' for the current session"
                         },
                         "meeting_key": {
-                            "type": "integer",
-                            "description": "Filter by OpenF1 meeting key"
+                            "type": "string",
+                            "description": "Unique meeting identifier, or 'latest' for the current meeting"
                         },
                         "driver_number": {
                             "type": "integer",
-                            "description": "Filter events for a specific driver number"
+                            "description": "The unique number assigned to an F1 driver for the season"
                         },
                         "flag": {
                             "type": "string",
-                            "description": "Filter by flag type, e.g. 'BLACK AND WHITE', 'YELLOW', 'RED', 'SAFETY CAR'"
+                            "description": "Type of flag displayed (GREEN, YELLOW, DOUBLE YELLOW, CHEQUERED, ...)"
                         },
                         "category": {
                             "type": "string",
-                            "description": "Filter by event category, e.g. 'Flag', 'SafetyCar', 'Other'"
+                            "enum": ["Drs", "Other", "Flag", "SessionStatus", "SafetyCar", "CarEvent"],
+                            "description": "Category of the event"
                         },
                         "lap_number": {
                             "type": "integer",
-                            "description": "Filter by lap number"
+                            "description": "Sequential lap number within the session (starts at 1)"
                         },
                         "date_from": {
                             "type": "string",
-                            "description": "Start of date range (ISO 8601, e.g. '2023-01-01')"
+                            "description": "Start of date range, inclusive (ISO 8601, e.g. '2024-03-15T10:00:00')"
                         },
                         "date_to": {
                             "type": "string",
-                            "description": "End of date range (ISO 8601, exclusive, e.g. '2023-09-01')"
+                            "description": "End of date range, exclusive (ISO 8601, e.g. '2024-03-15T12:00:00')"
+                        },
+                        "message": {
+                            "type": "string",
+                            "description": "Description of the event or action"
+                        },
+                        "qualifying_phase": {
+                            "type": "string",
+                            "description": "Qualifying phase (1, 2, or 3) if the session is a qualifying session"
+                        },
+                        "scope": {
+                            "type": "string",
+                            "description": "Scope of the event (Track, Driver, Sector, ...)"
+                        },
+                        "sector": {
+                            "type": "integer",
+                            "description": "Track sector (mini-sector) where the event occurred (starts at 1)"
                         }
                     },
                     "required": []
@@ -414,13 +431,17 @@ pub async fn query_llm_with_kalshi_tools(
 
                     let params = RaceControlParams {
                         session_key: args["session_key"].as_str().map(String::from),
-                        meeting_key: args["meeting_key"].as_i64().map(|v| v as i32),
+                        meeting_key: args["meeting_key"].as_str().map(String::from),
                         driver_number: args["driver_number"].as_i64().map(|v| v as i32),
                         flag: args["flag"].as_str().map(String::from),
                         category: args["category"].as_str().map(String::from),
                         lap_number: args["lap_number"].as_i64().map(|v| v as i32),
                         date_from: args["date_from"].as_str().map(String::from),
                         date_to: args["date_to"].as_str().map(String::from),
+                        message: args["message"].as_str().map(String::from),
+                        qualifying_phase: args["qualifying_phase"].as_str().map(String::from),
+                        scope: args["scope"].as_str().map(String::from),
+                        sector: args["sector"].as_i64().map(|v| v as i32),
                     };
 
                     return Ok(IntermediateLLMResponse {
