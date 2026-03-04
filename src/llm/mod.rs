@@ -1,2 +1,2 @@
 pub mod llm;
-pub mod price_agent;
+pub mod search_agent;

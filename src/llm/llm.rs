@@ -4,7 +4,7 @@ use crate::kalshi::markets::get_f1_market_details;
 use crate::kalshi::orders::get_open_order_details;
 use crate::kalshi::positions::get_positions_details;
 use crate::kalshi::purchase::place_order;
-use crate::llm::price_agent::price_markets_from_tickers;
+use crate::llm::search_agent::search_agent;
 use crate::{config, kalshi::balance::get_portfolio_value};
 use anyhow::Result;
 use reqwest::{
@@ -241,23 +241,17 @@ pub async fn query_llm_with_kalshi_tools(
                 parameters: serde_json::Value::Object(serde_json::Map::new()),
             },
             LLMTool::Function {
-                name: "priceMarketsFromTickers".to_string(),
-                description: "Get LLM-generated fair price estimates for a list of Kalshi market tickers.
-                            Returns a yes bid price (as a decimal probability) for each ticker. Please only
-                            provide tickers for markets with a volume of at least $500. Otherwise, we hit edge
-                            cases which causes the numbers to look weird.".to_string(),
+                name: "searchAgent".to_string(),
+                description: "Send a query to a sub-agent that answers it using web and X (Twitter) search. Use this to look up current information, news, or any question that benefits from real-time search.".to_string(),
                 parameters: serde_json::json!({
                     "type": "object",
                     "properties": {
-                        "tickers": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            },
-                            "description": "A list of Kalshi market ticker symbols to price"
+                        "query": {
+                            "type": "string",
+                            "description": "The question or search query for the sub-agent to answer"
                         }
                     },
-                    "required": ["tickers"]
+                    "required": ["query"]
                 }),
             },
             LLMTool::Function {
@@ -437,24 +431,18 @@ pub async fn query_llm_with_kalshi_tools(
                         id: response.id,
                     });
                 }
-                "priceMarketsFromTickers" => {
+                "searchAgent" => {
                     let args_str = arguments.as_deref().unwrap_or("{}");
                     let args: serde_json::Value = serde_json::from_str(args_str)
                         .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
 
-                    let tickers: Vec<String> = args["tickers"]
-                        .as_array()
-                        .ok_or_else(|| {
-                            anyhow::anyhow!(
-                                "priceMarketsFromTickers: missing required field 'tickers'"
-                            )
-                        })?
-                        .iter()
-                        .filter_map(|v| v.as_str().map(String::from))
-                        .collect();
+                    let query = args["query"]
+                        .as_str()
+                        .ok_or_else(|| anyhow::anyhow!("searchAgent: missing required field 'query'"))?
+                        .to_string();
 
                     return Ok(IntermediateLLMResponse {
-                        output: price_markets_from_tickers(tickers).await?,
+                        output: search_agent(query).await?,
                         error: response.error,
                         cost,
                         is_complete: false,

@@ -59,12 +59,3 @@ pub async fn get_market_information_by_ticker(ticker: &str) -> Result<Individual
     Ok(response.market)
 }
 
-pub fn get_market_details_without_price(market: &IndividualMarket) -> Result<String> {
-    Ok(format!(
-        "Title: {}
-        Subtitle: {}
-        Yes Subtitle: {}
-        No Subtitle: {}",
-        market.title, market.subtitle, market.yes_sub_title, market.no_sub_title
-    ))
-}
