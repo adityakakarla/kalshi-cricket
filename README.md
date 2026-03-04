@@ -2,7 +2,7 @@
 
 A CLI trading bot (built in Rust) that uses xAI (Grok) + the Kalshi API to automatically identify and place bets on F1 race markets.
 
-The bot uses an agentic loop: it fetches live market data from Kalshi, uses a fast Grok model to decide which trades to make, and uses a reasoning Grok model with web search to generate fair value price estimates for each market. It then places limit orders where the current market price diverges meaningfully from its fair value estimate.
+The bot uses an agentic loop: it fetches live market data from Kalshi, uses a fast Grok model to decide which trades to make, and can delegate research queries to a sub-agent with real-time web and X search. It then places limit orders based on its analysis.
 
 ## How It Works
 
@@ -13,7 +13,8 @@ The bot uses an agentic loop: it fetches live market data from Kalshi, uses a fa
    - `getF1Markets` — fetch all open F1 race markets with volume > 1,000 contracts
    - `getOrders` — fetch open orders
    - `getPositions` — fetch current positions
-   - `priceMarketsFromTickers` — for each ticker, calls `grok-4-1-fast-reasoning` with web + X search to generate a fair yes-bid price (only use for markets with volume > $500)
+   - `searchAgent` — delegates a query to `grok-4-1-fast-reasoning` with web + X search to answer research questions
+   - `getRaceControl` — fetch live race control events from the OpenF1 API
    - `createOrder` — place a limit buy or sell order for Yes or No contracts
 3. Once the agent produces a final text response, the loop ends and the result is printed.
 
@@ -110,14 +111,16 @@ src/
 │   ├── orders.rs        # Open order fetching
 │   ├── positions.rs     # Position fetching
 │   └── purchase.rs      # Order placement
+├── f1/
+│   └── race_control.rs  # OpenF1 API client for race control events
 └── llm/
     ├── llm.rs           # Grok API client, agentic tool-call loop
-    └── price_agent.rs   # Fair value pricing via reasoning model + web search
+    └── search_agent.rs  # Sub-agent for research queries via web + X search
 ```
 
 ## Notes
 
 - All prices on Kalshi are in **cents** (e.g. 60 = $0.60 = 60% implied probability).
-- The pricing agent (`price_agent.rs`) uses `grok-4-1-fast-reasoning` with web and X search to estimate fair value. Only pass it tickers with > $500 in volume to avoid low-liquidity edge cases.
+- The search agent (`search_agent.rs`) uses `grok-4-1-fast-reasoning` with web and X search to answer arbitrary research queries.
 - The trading agent loop runs for a maximum of **10 iterations** before stopping.
 - Orders are limit orders only.
