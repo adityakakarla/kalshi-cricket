@@ -1,3 +1,4 @@
+use crate::f1::overtakes::{OvertakesParams, get_overtakes_details};
 use crate::f1::race_control::{RaceControlParams, get_race_control_details};
 use crate::f1::sessions::{SessionParams, get_session_details};
 use crate::kalshi::balance::get_balance;
@@ -377,6 +378,36 @@ pub async fn query_llm_with_kalshi_tools(
                 }),
             },
             LLMTool::Function {
+                name: "getOvertakes".to_string(),
+                description: "Fetch overtake events from the OpenF1 API during a race. An overtake is when one driver exchanges position with another (on-track passes, pit stop changes, or penalty-driven position changes). Only available during races and may be incomplete. All parameters are optional filters. Use 'latest' for session_key or meeting_key to get the current session/meeting.".to_string(),
+                parameters: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "session_key": {
+                            "type": "string",
+                            "description": "Unique session identifier, or 'latest' for the current session"
+                        },
+                        "meeting_key": {
+                            "type": "string",
+                            "description": "Unique meeting identifier, or 'latest' for the current meeting"
+                        },
+                        "overtaking_driver_number": {
+                            "type": "integer",
+                            "description": "The unique number assigned to the overtaking F1 driver"
+                        },
+                        "overtaken_driver_number": {
+                            "type": "integer",
+                            "description": "The unique number assigned to the overtaken F1 driver"
+                        },
+                        "position": {
+                            "type": "integer",
+                            "description": "The position of the overtaking driver after the overtake was completed (starts at 1)"
+                        }
+                    },
+                    "required": []
+                }),
+            },
+            LLMTool::Function {
                 name: "createOrder".to_string(),
                 description: "Place an order on Kalshi. Use yes_price for buying/selling Yes contracts, or no_price for buying/selling No contracts. Prices are in cents (1-99). Only provide the price field relevant to your side.".to_string(),
                 parameters: serde_json::json!({
@@ -538,6 +569,27 @@ pub async fn query_llm_with_kalshi_tools(
 
                     return Ok(IntermediateLLMResponse {
                         output: get_session_details(params).await?,
+                        error: response.error,
+                        cost,
+                        is_complete: false,
+                        id: response.id,
+                    });
+                }
+                "getOvertakes" => {
+                    let args_str = arguments.as_deref().unwrap_or("{}");
+                    let args: serde_json::Value = serde_json::from_str(args_str)
+                        .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
+
+                    let params = OvertakesParams {
+                        session_key: args["session_key"].as_str().map(String::from),
+                        meeting_key: args["meeting_key"].as_str().map(String::from),
+                        overtaking_driver_number: args["overtaking_driver_number"].as_i64().map(|v| v as i32),
+                        overtaken_driver_number: args["overtaken_driver_number"].as_i64().map(|v| v as i32),
+                        position: args["position"].as_i64().map(|v| v as i32),
+                    };
+
+                    return Ok(IntermediateLLMResponse {
+                        output: get_overtakes_details(params).await?,
                         error: response.error,
                         cost,
                         is_complete: false,
